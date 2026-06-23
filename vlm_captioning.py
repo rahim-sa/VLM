@@ -25,3 +25,152 @@ import os
 from pathlib import Path
 
 MID = "Qwen/Qwen2.5-VL-3B-Instruct"
+
+# Load
+processor = AutoProcessor.from_pretrained(MID, trust_remote_code=True)
+model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+    MID,
+    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+    device_map="auto",
+    trust_remote_code=True,
+)
+
+# sample available image uploaded in Google Colab
+img = Image.open("/content/images/alex-gruber-POhtpsLad9Y-unsplash.jpg").convert("RGB")
+img
+
+def generate_english_caption(img):
+    """Generate English caption for an image"""
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "image": img},
+                #{"type": "text", "text": "Describe this image in details."}
+                {"type": "text", "text": "Provide a detailed description of this image. Include information about: the main subjects and their actions, colors, lighting, composition, background elements, spatial relationships, and any notable details or atmosphere."}
+            ],
+        }
+    ]
+
+    text = processor.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    )
+
+    image_inputs, video_inputs = process_vision_info(messages)
+
+    inputs = processor(
+        text=[text],
+        images=image_inputs,
+        videos=video_inputs,
+        padding=True,
+        return_tensors="pt",
+    ).to(model.device)
+
+    with torch.no_grad():
+        out = model.generate(
+            **inputs,
+            #max_new_tokens=256,
+            max_new_tokens=1024,
+        )
+
+    full_output = processor.decode(out[0], skip_special_tokens=True)
+
+    # Extract only the caption (after "assistant")
+    if "assistant" in full_output:
+        caption = full_output.split("assistant")[-1].strip()
+    else:
+        caption = full_output
+
+    return caption
+
+def generate_persian_caption(img):
+    """Generate English caption for an image"""
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "image": img},
+                {"type": "text", "text": "این تصویر را با جزئیات کامل توصیف کنید. به رنگ‌ها، اشیاء، افراد، محیط، و هر جزئیات مهم دیگر اشاره کنید."}
+
+                ],
+        }
+    ]
+
+    text = processor.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    )
+
+    image_inputs, video_inputs = process_vision_info(messages)
+
+    inputs = processor(
+        text=[text],
+        images=image_inputs,
+        videos=video_inputs,
+        padding=True,
+        return_tensors="pt",
+    ).to(model.device)
+
+    with torch.no_grad():
+        out = model.generate(
+            **inputs,
+            #max_new_tokens=256,
+            max_new_tokens=1024,
+        )
+
+    full_output = processor.decode(out[0], skip_special_tokens=True)
+
+    # Extract only the caption (after "assistant")
+    if "assistant" in full_output:
+        caption = full_output.split("assistant")[-1].strip()
+    else:
+        caption = full_output
+
+    return caption
+
+# Get ALL images from the uploaded folder in google colab
+upload_folder = "/content/images"
+image_paths = [os.path.join(upload_folder, f) for f in os.listdir(upload_folder)
+               if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))]
+
+print(f"Found {len(image_paths)} images")
+
+# Create and write to CSV
+with open('captions.csv', 'w', newline='', encoding= 'utf-8-sig') as csvfile:
+    writer = csv.writer(csvfile)
+
+    # Write header
+    writer.writerow(['image_name', 'english_caption', 'persian_caption'])
+
+    # Process each image
+    for img_path in image_paths:
+        print(f"Processing: {img_path}")
+
+        # Load image
+        img = Image.open(img_path)
+
+        # Get image name only
+        img_name = Path(img_path).name
+
+        # Generate captions
+        # eng_caption = generate_english_caption(img)
+        # per_caption = generate_persian_caption(img)
+        eng_caption = generate_english_caption(img).replace('\n', ' ')
+        per_caption = generate_persian_caption(img).replace('\n', ' ')
+
+        # Write row
+        writer.writerow([img_name, eng_caption, per_caption])
+
+        print(f"  ✓ Done: {img_name}")
+
+print("CSV saved as 'captions.csv'")
+
+# Show sample captions, in 1024 characters, in two languages
+print(f"  English: {eng_caption[:1024]}...")
+print()
+print(f"  Persian: {per_caption[:1024]}...")

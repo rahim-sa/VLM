@@ -23,3 +23,12 @@ Original file is located at
 #     !pip install --no-deps unsloth
 # !pip install transformers==4.55.4
 # !pip install --no-deps trl==0.22.2
+
+from unsloth import FastVisionModel # FastLanguageModel for LLMs
+import torch
+
+model, processor = FastVisionModel.from_pretrained(
+    # My published model on Huggingface in address: https://huggingface.co/Rahimsa/lora_model_Ch3
+    "Rahimsa/lora_model_Ch3",
+    load_in_4bit=True,
+)

@@ -137,3 +137,50 @@ from transformers import TextStreamer
 text_streamer = TextStreamer(processor, skip_prompt=True)
 result = model.generate(**inputs, streamer = text_streamer, max_new_tokens = 128,
                         use_cache=True, temperature = 1.0, top_p = 0.95, top_k = 64)
+
+
+
+
+"""Let's convert the dataset into the "correct" format for finetuning:"""
+
+converted_dataset = [convert_to_conversation(sample) for sample in dataset]
+
+"""The first example is now structured like below:"""
+
+converted_dataset[0]
+
+"""Lets take the Gemma 3 instruction chat template and use it in our base model"""
+
+from unsloth import get_chat_template
+
+processor = get_chat_template(
+    processor,
+    "gemma-3"
+)
+
+"""Before fine-tuning, let us evaluate the base model's performance. We do not expect strong results, as it has not encountered this chat template before."""
+
+FastVisionModel.for_inference(model)  # Enable for inference!
+
+image = dataset[2]["image"]
+instruction = "Write the LaTeX representation for this image."
+
+messages = [
+    {
+        "role": "user",
+        "content": [{"type": "image"}, {"type": "text", "text": instruction}],
+    }
+]
+input_text = processor.apply_chat_template(messages, add_generation_prompt=True)
+inputs = processor(
+    image,
+    input_text,
+    add_special_tokens=False,
+    return_tensors="pt",
+).to("cuda")
+
+from transformers import TextStreamer
+
+text_streamer = TextStreamer(processor, skip_prompt=True)
+result = model.generate(**inputs, streamer = text_streamer, max_new_tokens = 128,
+                        use_cache=True, temperature = 1.0, top_p = 0.95, top_k = 64)

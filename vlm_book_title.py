@@ -49,3 +49,109 @@ dataset['test'][1]['image']
 dataset['train'][150]['text']
 
 dataset['train'][150]['image']
+
+
+
+# Select first 1000 samples from train
+train_subset = dataset['train'].select(range(min(1000, len(dataset['train']))))
+
+# Select first 200 samples from test
+test_subset = dataset['test'].select(range(min(200, len(dataset['test']))))
+
+print(f"\nTrain samples: {len(train_subset)}")
+print(f"Test samples: {len(test_subset)}")
+
+test_subset[0]
+
+"""Step 2: Load VLM Model"""
+
+from unsloth import FastVisionModel
+import torch
+
+print("\nLoading VLM model...")
+
+# Using Gemma 3 which supports multilingual text including Persian
+model, processor = FastVisionModel.from_pretrained(
+    "unsloth/gemma-3-4b-pt",
+    load_in_4bit=True,
+    use_gradient_checkpointing="unsloth",
+)
+
+# Add LoRA adapters for fine-tuning
+model = FastVisionModel.get_peft_model(
+    model,
+    finetune_vision_layers=True,
+    finetune_language_layers=True,
+    finetune_attention_modules=True,
+    finetune_mlp_modules=True,
+    r=16,
+    lora_alpha=16,
+    lora_dropout=0,
+    bias="none",
+    random_state=3407,
+    use_rslora=False,
+    loftq_config=None,
+    target_modules="all-linear",
+)
+
+# Set chat template
+from unsloth import get_chat_template
+processor = get_chat_template(processor, "gemma-3")
+
+print("Model loaded successfully!")
+
+"""Step 3: Define Metrics"""
+
+import Levenshtein
+
+def exact_match(pred, true):
+    """Exact Match: Does prediction exactly match ground truth?"""
+    return 1 if pred.strip() == true.strip() else 0
+
+def levenshtein_accuracy(pred, true):
+    """Accuracy based on Levenshtein distance (0 to 1)"""
+    if len(true) == 0:
+        return 1.0 if len(pred) == 0 else 0.0
+    distance = Levenshtein.distance(pred, true)
+    max_len = max(len(pred), len(true))
+    return 1 - (distance / max_len)
+
+def word_level_f1(pred, true):
+    """F1-Score at word level"""
+    pred_words = set(pred.split())
+    true_words = set(true.split())
+
+    if len(true_words) == 0:
+        return 1.0 if len(pred_words) == 0 else 0.0
+
+    tp = len(pred_words & true_words)
+    fp = len(pred_words - true_words)
+    fn = len(true_words - pred_words)
+
+    if tp == 0:
+        return 0.0
+
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+
+    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    return f1
+
+def calculate_metrics(predictions, ground_truths):
+    """Calculate all metrics"""
+    em_scores = []
+    lev_scores = []
+    f1_scores = []
+
+    for pred, true in zip(predictions, ground_truths):
+        em_scores.append(exact_match(pred, true))
+        lev_scores.append(levenshtein_accuracy(pred, true))
+        f1_scores.append(word_level_f1(pred, true))
+
+    return {
+        'exact_match': sum(em_scores) / len(em_scores) * 100,
+        'levenshtein_accuracy': sum(lev_scores) / len(lev_scores) * 100,
+        'word_f1': sum(f1_scores) / len(f1_scores) * 100,
+    }
+
+

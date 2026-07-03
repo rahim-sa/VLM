@@ -10,3 +10,42 @@ Original file is located at
 Persian Book Cover Title Recognition using Vision-Language Models
 
 Fine-tuning VLM to extract Persian book titles from cover images
+
+
+Installation
+"""
+
+# Commented out IPython magic to ensure Python compatibility.
+# %%capture
+# import os, re
+# if "COLAB_" not in "".join(os.environ.keys()):
+#     !pip install unsloth
+# else:
+#     # Do this only in Colab notebooks! Otherwise use pip install unsloth
+#     import torch; v = re.match(r"[0-9\.]{3,}", str(torch.__version__)).group(0)
+#     xformers = "xformers==" + ("0.0.32.post2" if v == "2.8.0" else "0.0.29.post3")
+#     !pip install --no-deps bitsandbytes accelerate {xformers} peft trl triton cut_cross_entropy unsloth_zoo
+#     !pip install sentencepiece protobuf "datasets>=3.4.1,<4.0.0" "huggingface_hub>=0.34.0" hf_transfer
+#     !pip install --no-deps unsloth
+# !pip install transformers==4.55.4
+# !pip install --no-deps trl==0.22.2
+
+!pip install -q Levenshtein
+
+"""Step 1: Load Dataset and Prepare Data"""
+
+from datasets import load_dataset
+
+dataset = load_dataset("shenasa/bookroom-persian-book-covers-and-titles")
+
+dataset
+
+dataset['test'][112]['text']
+
+dataset['test'][112]['image']
+
+dataset['test'][1]['image']
+
+dataset['train'][150]['text']
+
+dataset['train'][150]['image']
